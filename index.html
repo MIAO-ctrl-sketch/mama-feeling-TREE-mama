@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>孕期心情樹 - 療癒空間</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
@@ -24,7 +24,18 @@
             background: radial-gradient(circle at center, #ffffff 0%, #fff1f2 100%);
         }
 
-        /* 響應式便利貼尺寸 */
+        /* Q 版寶寶背景圖案 */
+        .baby-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.05;
+            pointer-events: none;
+            width: 500px;
+        }
+
+        /* 水滴形便利貼核心樣式 */
         .sticky-note {
             position: absolute;
             width: 130px;
@@ -42,34 +53,13 @@
             z-index: 10;
         }
 
-        @media (max-width: 640px) {
-            .sticky-note {
-                width: 100px;
-                height: 100px;
-                padding: 12px;
-            }
-            .sticky-note p { font-size: 11px !important; }
-            .side-panel {
-                width: 90% !important;
-                height: auto !important;
-                max-height: 120px !important;
-                flex-direction: row !important;
-                overflow-x: auto !important;
-                top: 10px !important;
-                left: 50% !important;
-                transform: translateX(-50%);
-                padding: 10px !important;
-            }
-            .side-panel section { min-width: 150px; margin-right: 15px; }
-            .tree-container { bottom: 120px; transform: translateX(-50%) scale(0.8); }
-        }
-
         .sticky-note:active {
             transform: scale(1.1) rotate(2deg);
             box-shadow: 0 15px 30px rgba(0,0,0,0.1);
             z-index: 1000;
         }
 
+        /* 成長樹容器 */
         .tree-container {
             position: absolute;
             bottom: 60px;
@@ -82,22 +72,496 @@
             z-index: 5;
         }
 
-        .tree-trunk { background: #8b4513; border-radius: 12px 12px 0 0; }
+        .tree-trunk {
+            background: #8b4513;
+            border-radius: 12px 12px 0 0;
+            transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .tree-foliage {
+            transition: all 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* 隱藏滾動條 */
         ::-webkit-scrollbar { display: none; }
 
         .modal {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(8px);
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(6px);
             z-index: 2000;
             align-items: center;
             justify-content: center;
         }
+
         .modal.active { display: flex; }
 
+        /* 心情顏色球 */
         .color-dot {
-            width: 32px;
-            height: 32px;
-            border-radius: 50% 50%
+            width: 36px;
+            height: 36px;
+            border-radius: 50% 50% 50% 5%;
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .color-dot.selected {
+            border-color: #f43f5e;
+            transform: scale(1.25);
+        }
+
+        /* 側邊欄樣式 */
+        .side-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="canvas-area" id="canvas">
+    <!-- 背景寶寶 SVG -->
+    <svg class="baby-bg" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="#f472b6" />
+        <circle cx="70" cy="80" r="10" fill="white" />
+        <circle cx="130" cy="80" r="10" fill="white" />
+        <path d="M 75 130 Q 100 155 125 130" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" />
+        <path d="M 100 30 Q 110 10 120 30" stroke="white" stroke-width="5" fill="none" />
+    </svg>
+
+    <!-- 成長樹系統 -->
+    <div class="tree-container" id="treeSystem">
+        <div id="treeVisual" class="flex flex-col items-center">
+            <!-- JS 動態生成樹的型態 -->
+        </div>
+        <div id="treeLabel" class="mt-8 bg-white/90 border border-pink-100 px-6 py-2 rounded-full text-xs font-black text-pink-600 shadow-lg">
+            成長中的小小生命
+        </div>
+    </div>
+
+    <!-- 隨機正向語錄 Banner -->
+    <div id="quoteBanner" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/95 border border-pink-200 px-10 py-4 rounded-full shadow-2xl hidden animate__animated z-[1500]">
+        <p class="text-pink-600 font-bold flex items-center whitespace-nowrap">
+            <span class="mr-4 text-2xl">💖</span> <span id="quoteContent" class="text-lg">妳已經做得非常棒了！</span>
+        </p>
+    </div>
+
+    <!-- 左側貼紙倉庫 -->
+    <div class="fixed top-8 left-8 w-48 flex flex-col space-y-6 max-h-[85vh] side-panel p-5 overflow-hidden">
+        <section>
+            <p class="text-[11px] font-black text-pink-500 uppercase tracking-widest mb-4 flex items-center">
+                <span class="w-1.5 h-1.5 bg-pink-500 rounded-full mr-2"></span> 固定貼紙庫
+            </p>
+            <div class="grid grid-cols-3 gap-3" id="staticStickers">
+                <!-- 內建 8 種情緒標籤 -->
+            </div>
+        </section>
+        
+        <section class="flex-1 overflow-y-auto pr-1">
+            <p class="text-[11px] font-black text-indigo-500 uppercase tracking-widest mb-4 flex items-center">
+                <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full mr-2"></span> 常用貼紙模板
+            </p>
+            <div class="flex flex-col space-y-3" id="templateLibrary">
+                <!-- 自定義模板區 -->
+            </div>
+        </section>
+        <p class="text-[10px] text-gray-400 italic bg-white/40 p-3 rounded-xl border border-white/50">
+            點擊畫布便利貼上的 <span class="text-pink-500">♥</span> 即可儲存為模板
+        </p>
+    </div>
+
+    <!-- 右下懸浮選單 -->
+    <div class="fixed bottom-10 right-10 flex flex-col space-y-5 items-end">
+        <button onclick="openModal('noteModal')" class="flex items-center space-x-3 bg-pink-500 hover:bg-pink-600 text-white px-8 py-5 rounded-full shadow-2xl transition-all transform hover:scale-105 active:scale-95 font-black text-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>新增便利貼</span>
+        </button>
+        <button onclick="openModal('quoteModal')" class="flex items-center space-x-3 bg-white hover:bg-pink-50 text-pink-500 border-2 border-pink-100 px-6 py-4 rounded-full shadow-xl transition-all font-black">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>自定義語錄</span>
+        </button>
+        <a href="https://gemini.google.com" target="_blank" class="flex items-center space-x-3 bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-full shadow-2xl transition-all transform hover:scale-105 font-black">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span>與 Gemini 談心</span>
+        </a>
+    </div>
+</div>
+
+<!-- 彈窗：新增心情便利貼 -->
+<div id="noteModal" class="modal">
+    <div class="bg-white w-full max-w-md rounded-[48px] p-10 shadow-2xl m-4 relative animate__animated animate__zoomIn">
+        <h3 class="text-2xl font-black mb-6 text-gray-800">今天感覺如何？</h3>
+        <textarea id="noteInput" class="w-full h-44 border-none rounded-3xl p-6 bg-pink-50/50 focus:ring-4 focus:ring-pink-100 outline-none transition-all mb-8 text-gray-700 font-bold placeholder-pink-200" placeholder="寫下妳的秘密或心情..."></textarea>
+        
+        <div class="mb-10">
+            <div class="flex justify-between items-center mb-4">
+                <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider">心情色彩與自定義標籤</p>
+                <button onclick="removeSelectedColor()" id="deleteColorBtn" class="text-[10px] text-red-400 font-black hidden">刪除此色標</button>
+            </div>
+            <div class="flex flex-wrap gap-4 items-center" id="colorPalette">
+                <!-- 動態色彩按鈕 -->
+            </div>
+            <input id="labelInput" class="mt-4 w-full border-b-2 border-pink-100 p-2 text-sm focus:border-pink-500 outline-none text-gray-600 font-bold" placeholder="為此心情命名 (例如: 睡不飽、想喝珍奶)">
+        </div>
+
+        <div class="flex space-x-4">
+            <button onclick="createNote()" class="flex-1 bg-pink-500 text-white font-black py-5 rounded-[28px] shadow-lg hover:shadow-pink-200 transition-all">貼上心情樹</button>
+            <button onclick="closeModal('noteModal')" class="px-6 text-gray-400 font-black">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 彈窗：新增個人語錄 -->
+<div id="quoteModal" class="modal">
+    <div class="bg-white w-full max-w-sm rounded-[48px] p-10 shadow-2xl m-4 animate__animated animate__zoomIn">
+        <h3 class="text-2xl font-black mb-3 text-gray-800">給未來的自己</h3>
+        <p class="text-xs text-gray-400 mb-8 font-bold">存入語錄庫，讓系統隨機在妳貼上心情時送給妳</p>
+        <input id="quoteInput" class="w-full border-none bg-indigo-50/50 rounded-2xl p-6 mb-8 focus:ring-4 focus:ring-indigo-100 outline-none text-gray-700 font-bold" placeholder="妳是最棒的...">
+        <button onclick="saveCustomQuote()" class="w-full bg-indigo-500 text-white font-black py-5 rounded-[28px] shadow-lg transition-all">存入語錄庫</button>
+        <button onclick="closeModal('quoteModal')" class="w-full text-gray-400 font-black py-4 mt-2">關閉</button>
+    </div>
+</div>
+
+<script>
+    // 預設與存儲資料
+    let notes = JSON.parse(localStorage.getItem('notes_tree')) || [];
+    let customQuotes = JSON.parse(localStorage.getItem('quotes_tree')) || [
+        "妳今天已經做得很棒了！", 
+        "寶寶也在感受妳的愛喔。", 
+        "適度的休息是為了走更長的路。", 
+        "妳值得所有的溫柔與愛。", 
+        "每一次深呼吸，都在照顧妳自己。"
+    ];
+    let templates = JSON.parse(localStorage.getItem('templates_tree')) || [];
+    let customColors = JSON.parse(localStorage.getItem('colors_tree')) || [];
+    
+    let selectedHex = '#fef08a'; // 預設黃色(樂)
+    let selectedMoodLabel = '樂';
+
+    const defaultColors = [
+        { hex: '#fef08a', label: '樂' }, // 黃
+        { hex: '#bfdbfe', label: '沮' }, // 藍
+        { hex: '#fecaca', label: '憤' }, // 紅
+        { hex: '#e9d5ff', label: '焦' }  // 紫
+    ];
+
+    const staticIcons = [
+        { emoji: '😊', label: '😊' }, { emoji: '😡', label: '😡' }, { emoji: '😢', label: '😢' },
+        { emoji: '😮', label: '😮' }, { emoji: '😰', label: '😰' }, { emoji: '❤️', label: '❤️' },
+        { emoji: '👶', label: '👶' }, { emoji: '✨', label: '✨' }, { emoji: '🎊', label: '🎊' }
+    ];
+
+    window.onload = () => {
+        renderNotes();
+        renderStaticStickers();
+        renderTemplates();
+        renderColorPalette();
+        updateTree();
+    };
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    // --- 色彩標籤邏輯 ---
+    function selectColor(hex, label, el) {
+        selectedHex = hex;
+        selectedMoodLabel = label;
+        document.getElementById('labelInput').value = label === 'custom' ? '' : label;
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+        el.classList.add('selected');
+        
+        const isCustom = customColors.find(c => c.hex === hex);
+        document.getElementById('deleteColorBtn').classList.toggle('hidden', !isCustom);
+    }
+
+    function addNewColor(hex) {
+        if (!customColors.find(c => c.hex === hex)) {
+            customColors.push({ hex, label: '自定義' });
+            saveToStorage();
+            renderColorPalette();
+        }
+    }
+
+    function removeSelectedColor() {
+        customColors = customColors.filter(c => c.hex !== selectedHex);
+        selectedHex = '#fef08a';
+        saveToStorage();
+        renderColorPalette();
+        document.getElementById('deleteColorBtn').classList.add('hidden');
+    }
+
+    function renderColorPalette() {
+        const palette = document.getElementById('colorPalette');
+        const baseHtml = defaultColors.map(c => `
+            <div onclick="selectColor('${c.hex}', '${c.label}', this)" class="color-dot ${selectedHex===c.hex?'selected':''}" style="background-color: ${c.hex}"></div>
+        `).join('');
+        const customHtml = customColors.map(c => `
+            <div onclick="selectColor('${c.hex}', 'custom', this)" class="color-dot ${selectedHex===c.hex?'selected':''}" style="background-color: ${c.hex}"></div>
+        `).join('');
+        
+        const addBtn = `
+            <div class="relative group">
+                <input type="color" id="colorAdd" onchange="addNewColor(this.value)" class="opacity-0 absolute inset-0 w-full h-full cursor-pointer">
+                <div class="w-9 h-9 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 font-bold text-xl">+</div>
+            </div>
+        `;
+        palette.innerHTML = baseHtml + customHtml + addBtn;
+    }
+
+    // --- 便利貼邏輯 ---
+    function createNote() {
+        const text = document.getElementById('noteInput').value.trim();
+        const label = document.getElementById('labelInput').value.trim() || selectedMoodLabel;
+        if (!text) return;
+
+        const note = {
+            id: Date.now(),
+            text: text,
+            label: label,
+            color: selectedHex,
+            x: Math.random() * (window.innerWidth - 250) + 125,
+            y: Math.random() * (window.innerHeight - 400) + 100,
+            date: new Date().toLocaleDateString()
+        };
+
+        notes.push(note);
+        saveToStorage();
+        renderNotes();
+        updateTree();
+        triggerAffirmation();
+        
+        closeModal('noteModal');
+        document.getElementById('noteInput').value = '';
+    }
+
+    function renderNotes() {
+        document.querySelectorAll('.sticky-note').forEach(el => el.remove());
+        const canvas = document.getElementById('canvas');
+
+        notes.forEach(note => {
+            const el = document.createElement('div');
+            el.className = 'sticky-note animate__animated animate__fadeIn group';
+            el.style.backgroundColor = note.color;
+            el.style.left = note.x + 'px';
+            el.style.top = note.y + 'px';
+            
+            el.innerHTML = `
+                <span class="text-[10px] opacity-40 absolute top-2 font-bold">${note.date} · ${note.label}</span>
+                <p class="text-[12px] font-bold text-gray-700 leading-snug line-clamp-3 px-1">${note.text}</p>
+                <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 flex space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="deleteNote(${note.id})" class="bg-white/95 p-2 rounded-full shadow-lg text-red-500 hover:scale-110 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                    <button onclick="addToTemplates(${note.id})" class="bg-white/95 p-2 rounded-full shadow-lg text-pink-500 hover:scale-110 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+                </div>
+            `;
+
+            el.onclick = (e) => {
+                if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'svg') {
+                    if(note.text.length > 30) showFullText(note.text);
+                }
+            };
+
+            makeDraggable(el, note);
+            canvas.appendChild(el);
+        });
+    }
+
+    function makeDraggable(el, data) {
+        let isDragging = false;
+        let offset = { x: 0, y: 0 };
+
+        const start = (e) => {
+            isDragging = true;
+            const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            offset.x = clientX - el.offsetLeft;
+            offset.y = clientY - el.offsetTop;
+            el.style.transition = 'none';
+        };
+
+        const move = (e) => {
+            if (!isDragging) return;
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+            data.x = clientX - offset.x;
+            data.y = clientY - offset.y;
+            el.style.left = data.x + 'px';
+            el.style.top = data.y + 'px';
+        };
+
+        const end = () => {
+            if (isDragging) {
+                isDragging = false;
+                el.style.transition = 'transform 0.2s ease-out';
+                saveToStorage();
+            }
+        };
+
+        el.addEventListener('mousedown', start);
+        el.addEventListener('touchstart', start, {passive: false});
+        window.addEventListener('mousemove', move);
+        window.addEventListener('touchmove', move, {passive: false});
+        window.addEventListener('mouseup', end);
+        window.addEventListener('touchend', end);
+    }
+
+    // --- 成長樹邏輯 ---
+    function updateTree() {
+        const visual = document.getElementById('treeVisual');
+        const label = document.getElementById('treeLabel');
+        const count = notes.length;
+        
+        visual.innerHTML = '';
+        
+        if (count < 5) {
+            // 幼苗
+            visual.innerHTML = `
+                <div class="tree-trunk w-4 h-16 shadow-inner"></div>
+                <div class="tree-foliage w-24 h-24 bg-green-300 rounded-full -mt-24 animate-pulse" style="border-radius: 65% 35% 75% 25% / 55% 45% 55% 45%;"></div>
+            `;
+            label.innerText = "剛冒出頭的小生命";
+        } else if (count < 10) {
+            // 小樹
+            visual.innerHTML = `
+                <div class="tree-trunk w-10 h-32 shadow-xl"></div>
+                <div class="relative -mt-48">
+                    <div class="tree-foliage w-44 h-44 bg-green-400 rounded-full shadow-lg" style="border-radius: 40% 60% 45% 55%;"></div>
+                    <div class="absolute inset-4 flex flex-wrap justify-center content-center gap-2">
+                        ${notes.slice(0, count).map(n => `<div class="w-4 h-4 rounded-full shadow-sm" style="background-color: ${n.color}"></div>`).join('')}
+                    </div>
+                </div>
+            `;
+            label.innerText = "正努力吸收著陽光";
+        } else {
+            // 大樹
+            visual.innerHTML = `
+                <div class="tree-trunk w-20 h-56 shadow-2xl relative">
+                   <div class="absolute w-2 h-16 bg-black/10 right-2 top-4 rounded-full"></div>
+                </div>
+                <div class="relative -mt-[340px] w-96 h-80">
+                    <div class="tree-foliage absolute inset-0 bg-green-600 rounded-full shadow-2xl opacity-90" style="border-radius: 35% 65% 30% 70%;"></div>
+                    <div class="absolute inset-0 bg-green-500 rounded-full blur-sm scale-95" style="border-radius: 60% 40% 65% 35%;"></div>
+                    <div class="flex flex-wrap justify-center items-center p-16 gap-3 relative z-10 h-full">
+                        ${notes.slice(0, 40).map(n => `<div class="w-6 h-6 rounded-full shadow-md animate__animated animate__fadeIn" style="background-color: ${n.color}; border: 2px solid white;"></div>`).join('')}
+                    </div>
+                </div>
+            `;
+            label.innerText = "繁茂的心靈守護樹";
+        }
+    }
+
+    // --- 貼紙倉庫管理 ---
+    function renderStaticStickers() {
+        const container = document.getElementById('staticStickers');
+        staticIcons.forEach(s => {
+            const btn = document.createElement('div');
+            btn.className = 'bg-white/80 p-3 rounded-2xl text-center shadow-sm text-2xl cursor-pointer hover:scale-110 active:scale-90 transition-all border border-pink-50 hover:border-pink-200';
+            btn.innerText = s.emoji;
+            btn.onclick = () => {
+                document.getElementById('noteInput').value = s.label;
+                selectedMoodLabel = s.label;
+                createNote();
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    function renderTemplates() {
+        const container = document.getElementById('templateLibrary');
+        container.innerHTML = '';
+        templates.forEach((t, i) => {
+            const item = document.createElement('div');
+            item.className = 'relative group';
+            item.innerHTML = `
+                <div onclick="useTemplate(${i})" class="bg-white p-3 rounded-2xl shadow-sm border-2 border-transparent hover:border-indigo-300 cursor-pointer transition-all flex items-center space-x-3">
+                    <div class="w-3 h-3 rounded-full shrink-0" style="background-color: ${t.color}"></div>
+                    <p class="text-[11px] font-black text-gray-500 truncate">${t.text}</p>
+                </div>
+                <button onclick="deleteTemplate(${i})" class="absolute -top-2 -right-2 bg-red-400 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function addToTemplates(id) {
+        const note = notes.find(n => n.id === id);
+        if (note && !templates.find(t => t.text === note.text)) {
+            templates.push({ text: note.text, color: note.color });
+            saveToStorage();
+            renderTemplates();
+        }
+    }
+
+    function useTemplate(i) {
+        const t = templates[i];
+        selectedHex = t.color;
+        document.getElementById('noteInput').value = t.text;
+        createNote();
+    }
+
+    function deleteTemplate(i) {
+        templates.splice(i, 1);
+        saveToStorage();
+        renderTemplates();
+    }
+
+    function deleteNote(id) {
+        notes = notes.filter(n => n.id !== id);
+        saveToStorage();
+        renderNotes();
+        updateTree();
+    }
+
+    // --- 語錄與互動 ---
+    function triggerAffirmation() {
+        const banner = document.getElementById('quoteBanner');
+        const text = document.getElementById('quoteContent');
+        const random = customQuotes[Math.floor(Math.random() * customQuotes.length)];
+        
+        text.innerText = random;
+        banner.classList.remove('hidden', 'animate__fadeOutUp');
+        banner.classList.add('animate__fadeInDown');
+        
+        setTimeout(() => {
+            banner.classList.add('animate__fadeOutUp');
+            setTimeout(() => banner.classList.add('hidden'), 1000);
+        }, 6000);
+    }
+
+    function saveCustomQuote() {
+        const val = document.getElementById('quoteInput').value.trim();
+        if (val) {
+            customQuotes.push(val);
+            saveToStorage();
+            closeModal('quoteModal');
+            document.getElementById('quoteInput').value = '';
+            triggerAffirmation();
+        }
+    }
+
+    function showFullText(text) {
+        const div = document.createElement('div');
+        div.className = 'fixed inset-0 bg-black/50 flex items-center justify-center p-8 z-[3000] backdrop-blur-md';
+        div.innerHTML = `
+            <div class="bg-white p-12 rounded-[56px] max-w-md w-full animate__animated animate__zoomIn shadow-2xl border-4 border-pink-50">
+                <p class="text-gray-700 font-black leading-relaxed mb-10 text-xl">${text}</p>
+                <button class="w-full bg-pink-500 text-white py-5 rounded-[28px] font-black shadow-lg" onclick="this.parentElement.parentElement.remove()">心領神會</button>
+            </div>
+        `;
+        document.body.appendChild(div);
+    }
+
+    function saveToStorage() {
+        localStorage.setItem('notes_tree', JSON.stringify(notes));
+        localStorage.setItem('quotes_tree', JSON.stringify(customQuotes));
+        localStorage.setItem('templates_tree', JSON.stringify(templates));
+        localStorage.setItem('colors_tree', JSON.stringify(customColors));
+    }
+</script>
+
+</body>
+</html>
